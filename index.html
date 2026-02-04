@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<title>ABLUKA – Strateji Oyunu</title>
+<style>
+body {
+  background:#1e1e1e;
+  color:#fff;
+  font-family:Arial, sans-serif;
+  display:flex;
+  justify-content:center;
+  margin-top:20px;
+}
+#game {
+  text-align:center;
+}
+#board {
+  display:grid;
+  grid-template-columns:repeat(7,60px);
+  gap:4px;
+  margin-top:10px;
+}
+.cell {
+  width:60px;
+  height:60px;
+  background:#555;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.white {
+  background:#eee;
+  border-radius:50%;
+}
+.black {
+  background:#111;
+  border-radius:50%;
+}
+.block {
+  background:darkred;
+}
+.selected {
+  outline:3px solid yellow;
+}
+</style>
+</head>
+
+<body>
+<div id="game">
+  <h2>ABLUKA</h2>
+  <p id="info">Beyaz sensin. Taşı oyna, sonra engel koy.</p>
+  <div id="board"></div>
+</div>
+
+<script>
+const SIZE = 7;
+const CENTER = 24;
+
+let board = Array(49).fill(0);
+let playerPos = 24;
+let aiPos = 25;
+board[playerPos] = 1;
+board[aiPos] = 2;
+
+let phase = "move";
+let selected = null;
+
+const boardDiv = document.getElementById("board");
+const info = document.getElementById("info");
+
+function draw() {
+  boardDiv.innerHTML = "";
+  board.forEach((v,i)=>{
+    let d = document.createElement("div");
+    d.className="cell";
+    if(v===1)d.classList.add("white");
+    if(v===2)d.classList.add("black");
+    if(v===-1)d.classList.add("block");
+    if(i===selected)d.classList.add("selected");
+    d.onclick=()=>clickCell(i);
+    boardDiv.appendChild(d);
+  });
+}
+
+function neighbors(i){
+  let x=i%SIZE,y=Math.floor(i/SIZE);
+  let res=[];
+  for(let dx=-1;dx<=1;dx++)
+    for(let dy=-1;dy<=1;dy++){
+      if(dx||dy){
+        let nx=x+dx,ny=y+dy;
+        if(nx>=0&&ny>=0&&nx<SIZE&&ny<SIZE)
+          res.push(ny*SIZE+nx);
+      }
+    }
+  return res;
+}
+
+function moves(pos,b){
+  return neighbors(pos).filter(i=>b[i]===0);
+}
+
+function hasMove(pos,b){
+  return moves(pos,b).length>0;
+}
+
+function evaluate(b,pPos,aPos){
+  let aiM = moves(aPos,b).length;
+  let pM = moves(pPos,b).length;
+  let aC = Math.abs(aPos-CENTER);
+  let pC = Math.abs(pPos-CENTER);
+  return aiM*3 - pM*4 - aC + pC;
+}
+
+function minimax(b,pPos,aPos,depth,alpha,beta,max){
+  if(depth===0 || !hasMove(aPos,b) || !hasMove(pPos,b))
+    return evaluate(b,pPos,aPos);
+
+  if(max){
+    let best=-999;
+    for(let m of moves(aPos,b)){
+      let nb=b.slice();
+      nb[aPos]=0; nb[m]=2;
+      let val=minimax(nb,pPos,m,depth-1,alpha,beta,false);
+      best=Math.max(best,val);
+      alpha=Math.max(alpha,best);
+      if(beta<=alpha)break;
+    }
+    return best;
+  } else {
+    let best=999;
+    for(let m of moves(pPos,b)){
+      let nb=b.slice();
+      nb[pPos]=0; nb[m]=1;
+      let val=minimax(nb,m,aPos,depth-1,alpha,beta,true);
+      best=Math.min(best,val);
+      beta=Math.min(beta,best);
+      if(beta<=alpha)break;
+    }
+    return best;
+  }
+}
+
+function bestBlock(b,pPos){
+  let best=null,score=999;
+  for(let i=0;i<b.length;i++){
+    if(b[i]!==0)continue;
+    let nb=b.slice();
+    nb[i]=-1;
+    let m=moves(pPos,nb).length;
+    if(m<score){
+      score=m;
+      best=i;
+    }
+  }
+  return best;
+}
+
+function clickCell(i){
+  if(phase==="move"){
+    if(i===playerPos) selected=i;
+    else if(selected!==null && neighbors(playerPos).includes(i) && board[i]===0){
+      board[playerPos]=0;
+      playerPos=i;
+      board[playerPos]=1;
+      selected=null;
+      phase="block";
+      info.textContent="Şimdi engel koy";
+    }
+  } else if(phase==="block"){
+    if(board[i]===0){
+      board[i]=-1;
+      phase="ai";
+      info.textContent="Rakip düşünüyor...";
+      setTimeout(aiTurn,300);
+    }
+  }
+  draw();
+}
+
+function aiTurn(){
+  if(!hasMove(aiPos,board)){
+    alert("Kazandın! Siyah oynayamadı.");
+    return;
+  }
+
+  let best=-999,move=null;
+  for(let m of moves(aiPos,board)){
+    let nb=board.slice();
+    nb[aiPos]=0; nb[m]=2;
+    let val=minimax(nb,playerPos,m,4,-999,999,false);
+    if(val>best){
+      best=val;
+      move=m;
+    }
+  }
+
+  board[aiPos]=0;
+  aiPos=move;
+  board[aiPos]=2;
+
+  let block=bestBlock(board,playerPos);
+  if(block!==null) board[block]=-1;
+
+  if(!hasMove(playerPos,board)){
+    alert("Kaybettin! Ablukaya alındın.");
+    return;
+  }
+
+  phase="move";
+  info.textContent="Taşını oyna";
+  draw();
+}
+
+draw();
+</script>
+</body>
+</html>
